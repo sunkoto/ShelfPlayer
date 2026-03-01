@@ -103,6 +103,9 @@ final class LocalAudioEndpoint: AudioEndpoint {
     
     private var chapterValidUntil: TimeInterval?
     
+    private var cachedSkipIntro: TimeInterval?
+    private var cachedSkipOutro: TimeInterval?
+    
     private var audioPlayerSubscription: Any?
     private var volumeSubscription: AnyCancellable?
     private var bufferCheckTimer: Timer?
@@ -155,7 +158,9 @@ final class LocalAudioEndpoint: AudioEndpoint {
         try await start()
     }
     deinit {
-        // bufferCheckTimer?.invalidate()
+        // Note: Most cleanup is done in stop() method.
+        // This deinit is a safety net for when the object is deallocated without proper cleanup.
+        // Timer and NotificationCenter observers will be automatically cleaned up when their targets are deallocated.
     }
     
     var currentItemID: ItemIdentifier {
@@ -263,6 +268,13 @@ extension LocalAudioEndpoint {
         cancelUpdateBufferingCheck()
         sleepTimeoutTimer?.invalidate()
         
+        if let audioPlayerSubscription {
+            audioPlayer.removeTimeObserver(audioPlayerSubscription)
+        }
+        
+        // Note: NotificationCenter observers are automatically removed when the object is deallocated
+        // due to weak references in the notification system
+        
         await AudioPlayer.shared.didStopPlaying(endpointID: id, itemID: currentItemID)
     }
     
@@ -327,9 +339,17 @@ extension LocalAudioEndpoint {
             activeAudioTrackIndex = index
         }
         
-        await audioPlayer.seek(to: CMTime(seconds: time - audioTracks[index].offset, preferredTimescale: 1000))
+        var seekTime = time - audioTracks[index].offset
         
-        currentTime = time
+        if seekTime == 0,
+           let skipIntro = cachedSkipIntro,
+           skipIntro > 0 {
+            seekTime = skipIntro
+        }
+        
+        await audioPlayer.seek(to: CMTime(seconds: seekTime, preferredTimescale: 1000))
+        
+        currentTime = audioTracks[index].offset + seekTime
         await updateChapterIndex()
         
         if isPlaying {
@@ -501,10 +521,22 @@ private extension LocalAudioEndpoint {
         self.audioTracks = audioTracks.sorted()
         self.chapters = chapters.sorted()
         
+        cachedSkipIntro = await PersistenceManager.shared.item.skipIntro(for: currentItemID)
+        cachedSkipOutro = await PersistenceManager.shared.item.skipOutro(for: currentItemID)
+        
         playbackReporter = .init(itemID: currentItemID, startTime: startTime, sessionID: sessionID)
         
+        let effectiveStartTime: TimeInterval
+        if startTime == 0,
+           let skipIntro = cachedSkipIntro,
+           skipIntro > 0 {
+            effectiveStartTime = skipIntro
+        } else {
+            effectiveStartTime = startTime
+        }
+        
         do {
-            try await seek(to: startTime, insideChapter: false)
+            try await seek(to: effectiveStartTime, insideChapter: false)
         } catch {
             logger.error("Failed to seek to start time: \(error)")
         }
@@ -846,6 +878,23 @@ private extension LocalAudioEndpoint {
         RFNotification[.accessTokenExpired].subscribe { [weak self] connectionID in
             self?.repopulateQueueTrigger(connectionID: connectionID)
         }
+
+        RFNotification[.invalidateProgressEntities].subscribe { [weak self] _ in
+            Task.detached { [weak self] in
+                guard let self else {
+                    return
+                }
+
+                let itemID = await MainActor.run { self.currentItemID }
+                let skipIntro = await PersistenceManager.shared.item.skipIntro(for: itemID)
+                let skipOutro = await PersistenceManager.shared.item.skipOutro(for: itemID)
+
+                await MainActor.run {
+                    self.cachedSkipIntro = skipIntro
+                    self.cachedSkipOutro = skipOutro
+                }
+            }
+        }
         
         RFNotification[.collectionChanged].subscribe { [weak self] collectionID in
             guard self?.upNextStrategy?.itemID == collectionID else {
@@ -931,7 +980,16 @@ private extension LocalAudioEndpoint {
                         await didPlayToEnd(finishedCurrentItem: true)
                     }
                 } else {
-                    activeAudioTrackIndex += 1
+                    Task {
+                        activeAudioTrackIndex += 1
+                        
+                        if let skipIntro = self.cachedSkipIntro,
+                           skipIntro > 0,
+                           activeAudioTrackIndex < self.audioTracks.count {
+                            let nextTrackOffset = self.audioTracks[self.activeAudioTrackIndex].offset
+                            try? await self.seek(to: nextTrackOffset + skipIntro, insideChapter: false)
+                        }
+                    }
                 }
             }
         }
@@ -971,6 +1029,27 @@ private extension LocalAudioEndpoint {
                         let seconds = audioPlayer.currentTime().seconds
                         
                         currentTime = audioTrack.offset + seconds
+                        
+                        if let currentTime = currentTime,
+                           let skipOutro = self.cachedSkipOutro,
+                           skipOutro > 0,
+                           activeAudioTrackIndex < self.audioTracks.count - 1 {
+                            let trackEndTime = audioTrack.offset + audioTrack.duration
+                            
+                            if currentTime >= trackEndTime - skipOutro {
+                                activeAudioTrackIndex += 1
+                                
+                                if let skipIntro = self.cachedSkipIntro,
+                                   skipIntro > 0 {
+                                    let nextTrackOffset = self.audioTracks[self.activeAudioTrackIndex].offset
+                                    try? await self.seek(to: nextTrackOffset + skipIntro, insideChapter: false)
+                                } else {
+                                    try? await self.seek(to: self.audioTracks[self.activeAudioTrackIndex].offset, insideChapter: false)
+                                }
+                                
+                                return
+                            }
+                        }
                     }
                     
                     // MARK: Chapter

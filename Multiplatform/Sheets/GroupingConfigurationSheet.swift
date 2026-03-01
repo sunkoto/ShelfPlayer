@@ -58,6 +58,24 @@ struct GroupingConfigurationSheet: View {
                     }
                     
                     Section {
+                        HStack {
+                            Text("item.grouping.configure.skipIntro")
+                            Spacer()
+                            SkipTimePicker(selection: $viewModel.skipIntro)
+                        }
+                        
+                        HStack {
+                            Text("item.grouping.configure.skipOutro")
+                            Spacer()
+                            SkipTimePicker(selection: $viewModel.skipOutro)
+                        }
+                    } header: {
+                        Text("item.grouping.configure.skipTime")
+                    } footer: {
+                        Text("item.grouping.configure.skipTime.description")
+                    }
+                    
+                    Section {
                         if viewModel.isUpNextCustomizable {
                             Picker("item.grouping.configure.upNextStrategy", selection: $viewModel.upNextStrategy) {
                                 ForEach(ConfigureableUpNextStrategy.allCases) {
@@ -162,6 +180,9 @@ private final class ViewModel {
     
     var retrieval: ConvenienceDownloadRetrievalOption
     
+    var skipIntro: TimeInterval?
+    var skipOutro: TimeInterval?
+    
     var notifyError = false
     
     init(itemID: ItemIdentifier) async {
@@ -177,6 +198,9 @@ private final class ViewModel {
         } else {
             retrieval = .disabled
         }
+        
+        skipIntro = await PersistenceManager.shared.item.skipIntro(for: itemID)
+        skipOutro = await PersistenceManager.shared.item.skipOutro(for: itemID)
     }
     
     var isPlaybackRateCustomized: Bool {
@@ -249,6 +273,18 @@ private final class ViewModel {
             
             do {
                 try await PersistenceManager.shared.convenienceDownload.setRetrieval(for: itemID, retrieval: retrieval.resolved)
+            } catch {
+                failedCount += 1
+            }
+            
+            do {
+                try await PersistenceManager.shared.item.setSkipIntro(skipIntro, for: itemID)
+            } catch {
+                failedCount += 1
+            }
+            
+            do {
+                try await PersistenceManager.shared.item.setSkipOutro(skipOutro, for: itemID)
             } catch {
                 failedCount += 1
             }
@@ -400,6 +436,62 @@ enum ConvenienceDownloadRetrievalOption: String, Identifiable {
             case .all:
                 return .all
         }
+    }
+}
+
+struct SkipTimePicker: View {
+    @Binding var selection: TimeInterval?
+    
+    @State private var minutes: Int = 0
+    @State private var seconds: Int = 0
+    @State private var isEnabled: Bool = false
+    
+    private let maxMinutes = 59
+    private let maxSeconds = 59
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Picker("", selection: $minutes) {
+                ForEach(0...maxMinutes, id: \.self) { minute in
+                    Text(String(format: "%02d", minute))
+                        .tag(minute)
+                }
+            }
+            .pickerStyle(.wheel)
+            .frame(width: 50)
+            .clipped()
+            
+            Text(":")
+                .font(.body.monospacedDigit())
+            
+            Picker("", selection: $seconds) {
+                ForEach(0...maxSeconds, id: \.self) { second in
+                    Text(String(format: "%02d", second))
+                        .tag(second)
+                }
+            }
+            .pickerStyle(.wheel)
+            .frame(width: 50)
+            .clipped()
+        }
+        .onAppear {
+            if let time = selection {
+                isEnabled = true
+                minutes = Int(time) / 60
+                seconds = Int(time) % 60
+            }
+        }
+        .onChange(of: minutes) { _, _ in
+            updateSelection()
+        }
+        .onChange(of: seconds) { _, _ in
+            updateSelection()
+        }
+    }
+    
+    private func updateSelection() {
+        let totalSeconds = minutes * 60 + seconds
+        selection = totalSeconds > 0 ? TimeInterval(totalSeconds) : nil
     }
 }
 

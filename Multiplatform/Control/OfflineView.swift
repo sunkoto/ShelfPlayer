@@ -12,16 +12,6 @@ struct OfflineView: View {
     @Environment(Satellite.self) private var satellite
     @Environment(OfflineMode.self) private var offlineMode
     
-    init() {
-        let appearance = UINavigationBarAppearance()
-        
-        appearance.configureWithTransparentBackground()
-        UINavigationBar.appearance().standardAppearance = appearance
-        
-        appearance.configureWithDefaultBackground()
-        UINavigationBar.appearance().compactAppearance = appearance
-    }
-    
     @State private var audiobooks = [Audiobook]()
     @State private var podcasts = [Podcast: [Episode]]()
     

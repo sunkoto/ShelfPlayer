@@ -251,7 +251,7 @@ struct PlaybackControls: View {
         if UIDevice.current.userInterfaceIdiom == .pad {
             2.8
         } else {
-            2
+            2.8
         }
     }
     
@@ -324,9 +324,7 @@ struct PlaybackControls: View {
                 forwardButton
                     .font(.title)
             }
-            Spacer(minLength: 8)
-            
-            BottomSlider()
+
         }
         .aspectRatio(aspectRatio, contentMode: .fit)
         .compositingGroup()

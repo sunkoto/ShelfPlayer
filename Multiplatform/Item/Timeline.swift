@@ -80,20 +80,9 @@ struct Timeline: View {
     var body: some View {
         VStack(spacing: 12) {
             if !sessionLoader.sessions.isEmpty || sessionLoader.isLoading {
-                HStack(spacing: 12) {
-                    capsule(title: "item.timeline.total",
-                            isLoading: sessionLoader.isLoading) {
-                        Text(sessionLoader.totalTimeSpendListening, format: .duration(unitsStyle: .full, allowedUnits: [.day, .hour, .minute], maximumUnitCount: 1))
-                    }
-                    
-                    capsule(title: "item.lastPlayed", isLoading: sessionLoader.mostRecent == nil && sessionLoader.isLoading) {
-                        if !isPlaying, let mostRecent = sessionLoader.mostRecent {
-                            Text(mostRecent.startDate, style: .relative)
-                        } else {
-                            Text("loading")
-                                .redacted(reason: .placeholder)
-                        }
-                    }
+                capsule(title: "item.timeline.total",
+                        isLoading: sessionLoader.isLoading) {
+                    Text(sessionLoader.totalTimeSpendListening, format: .duration(unitsStyle: .full, allowedUnits: [.day, .hour, .minute], maximumUnitCount: 1))
                 }
             }
             

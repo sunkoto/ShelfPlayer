@@ -91,21 +91,9 @@ private struct FlushButtons: View {
     var body: some View {
         Section {
             Button {
-                removeDownloads()
+                clearSpotlightIndex()
             } label: {
-                Label {
-                    HStack(spacing: 0) {
-                        Text("preferences.purge.downloads")
-                        
-                        if let downloadDirectorySize {
-                            Spacer(minLength: 8)
-                            Text(downloadDirectorySize.formatted(.byteCount(style: .file)))
-                                .foregroundStyle(.gray)
-                        }
-                    }
-                } icon: {
-                    Image(systemName: "slash.circle")
-                }
+                Label("preferences.purge.spotlight", systemImage: "sparkle.magnifyingglass")
             }
             
             Button {
@@ -129,6 +117,24 @@ private struct FlushButtons: View {
             Button("preferences.purge.progress", systemImage: "trash.square") {
 //                progressViewModel.flush(isLoading: $isLoading)
                 #warning("grr")
+            }
+            
+            Button {
+                removeDownloads()
+            } label: {
+                Label {
+                    HStack(spacing: 0) {
+                        Text("preferences.purge.downloads")
+                        
+                        if let downloadDirectorySize {
+                            Spacer(minLength: 8)
+                            Text(downloadDirectorySize.formatted(.byteCount(style: .file)))
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                } icon: {
+                    Image(systemName: "slash.circle")
+                }
             }
         }
         .disabled(isLoading)
@@ -210,6 +216,36 @@ private struct FlushButtons: View {
             try? await Task.sleep(for: .seconds(1))
             
             load()
+            
+            withAnimation {
+                isLoading = false
+                
+                if !success {
+                    notifyError.toggle()
+                }
+            }
+        }
+    }
+    
+    func clearSpotlightIndex() {
+        Task {
+            withAnimation {
+                isLoading = true
+            }
+            
+            var success = true
+            
+            do {
+                try await PersistenceManager.shared.convenienceDownload.resetRunsInExtendedBackgroundTask()
+            } catch {
+                success = false
+            }
+            
+            do {
+                try await SpotlightIndexer.shared.reset()
+            } catch {
+                success = false
+            }
             
             withAnimation {
                 isLoading = false

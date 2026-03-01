@@ -27,7 +27,7 @@ struct PlaybackCompactExpandedForeground: View {
                 .frame(height: safeAreTopInset)
                 .hidden()
             
-            Spacer(minLength: 12)
+            Spacer(minLength: 24)
             
             if !viewModel.isQueueVisible {
                 Rectangle()
@@ -59,20 +59,20 @@ struct PlaybackCompactExpandedForeground: View {
                         .modifier(PlaybackDragGestureCatcher(height: height))
                     }
                 
-                Spacer(minLength: 12)
+                Spacer(minLength: 20)
                 
                 Group {
                     PlaybackTitle(showTertiarySupplements: true)
                         .matchedGeometryEffect(id: "text", in: namespace!, properties: .frame, anchor: .center)
                     
-                    Spacer(minLength: 12)
+                    Spacer(minLength: 20)
                     
                     PlaybackControls()
                         .transition(.move(edge: .bottom).combined(with: .opacity).animation(.snappy(duration: 0.1)))
                 }
                 .offset(y: viewModel.controlTranslationY)
                 
-                Spacer(minLength: 12)
+                Spacer(minLength: 20)
             } else {
                 HStack(spacing: 12) {
                     Button {

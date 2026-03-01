@@ -49,11 +49,14 @@ public struct ItemImage: View {
         ZStack {
             if let image {
                 if aspectRatioPolicy == .none {
-                    image
-                        .resizable()
-                        .scaledToFit()
-                        .clipShape(.rect(cornerRadius: cornerRadius))
-                        .modifier(ContrastModifier(itemID: itemID, cornerRadius: cornerRadius, configuration: contrastConfiguration))
+                    ZStack {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .clipShape(.rect(cornerRadius: cornerRadius))
+                            .modifier(ContrastModifier(itemID: itemID, cornerRadius: cornerRadius, configuration: contrastConfiguration))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Color.clear
                         .overlay {

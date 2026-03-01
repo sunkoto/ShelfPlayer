@@ -47,9 +47,22 @@ public extension PersistenceManager.ItemSubsystem {
         try await PersistenceManager.shared.keyValue.set(.allowSuggestions(for: itemID), allowed)
     }
     
+    func skipIntro(for itemID: ItemIdentifier) async -> TimeInterval? {
+        await PersistenceManager.shared.keyValue[.skipIntro(for: itemID)]
+    }
+    func setSkipIntro(_ time: TimeInterval?, for itemID: ItemIdentifier) async throws {
+        try await PersistenceManager.shared.keyValue.set(.skipIntro(for: itemID), time)
+    }
+    func skipOutro(for itemID: ItemIdentifier) async -> TimeInterval? {
+        await PersistenceManager.shared.keyValue[.skipOutro(for: itemID)]
+    }
+    func setSkipOutro(_ time: TimeInterval?, for itemID: ItemIdentifier) async throws {
+        try await PersistenceManager.shared.keyValue.set(.skipOutro(for: itemID), time)
+    }
+    
     func dominantColor(of itemID: ItemIdentifier) async -> Color? {
         #if DEBUG
-        if itemID.libraryID == "fixture" {
+        if itemID.connectionID == "fixture" {
             return .orange
         }
         #endif
@@ -204,6 +217,13 @@ private extension PersistenceManager.KeyValueSubsystem.Key {
     }
     static func allowSuggestions(for itemID: ItemIdentifier) -> Key<Bool> {
         Key(identifier: "allowSuggestions-\(itemID)", cluster: "allowSuggestions", isCachePurgeable: false)
+    }
+    
+    static func skipIntro(for itemID: ItemIdentifier) -> Key<TimeInterval> {
+        Key(identifier: "skipIntro-\(itemID)", cluster: "skipIntro", isCachePurgeable: false)
+    }
+    static func skipOutro(for itemID: ItemIdentifier) -> Key<TimeInterval> {
+        Key(identifier: "skipOutro-\(itemID)", cluster: "skipOutro", isCachePurgeable: false)
     }
     
     static func dominantColor(of itemID: ItemIdentifier) -> Key<String> {
