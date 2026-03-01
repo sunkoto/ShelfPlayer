@@ -1,99 +1,33 @@
-# ShelfPlayer
+*Forked From:rasmuslos/ShelfPlayer*
 
-**ShelfPlayer** is a powerful iOS application for listening to audiobooks and podcasts, designed for users with self-hosted [Audiobookshelf](https://www.audiobookshelf.org/) libraries. Built in **Swift 6** for **iOS 18+**, ShelfPlayer is fast, privacy-respecting, and deeply integrated with the Apple ecosystem.
+*Modified solely for personal use, retaining original core links and license.*
 
-> [!WARNING]
-> ShelfPlayer does not include any media content. A running Audiobookshelf instance is required to use the app.
+## Feature Additions
 
-## Features
+1. Added the function to skip the intro and outro of audiobooks;
 
-* **Full content browsing**: Explore audiobooks, authors, narrators, series, podcasts, episodes, collections, and playlists.
-* **Multiple users and libraries**: Connect to multiple Audiobookshelf servers or user accounts simultaneously.
-* **System-level integration**: Supports Widgets, Siri, App Intents, and CarPlay.
-* **Global discovery**: "Listen Now" and universal search work across all connected libraries.
-* **Advanced playback tools**: Highly configurable playback speed and sleep timer.
-* **Daily listen tracking**: Accurate tracking of playback time, with optional daily goals.
-* **PDF viewer**: Built-in support for attached PDF documents.
-* **Offline access**: Automatic media downloads for seamless offline playback.
-* **Modern interface**: Clean, native design optimized for both iPhone and iPad.
+## Bug Fixes
 
-## Download
+1. Fixed the issue where selecting different chapters on the audiobook page could not jump to playback;
 
-<a href="https://apps.apple.com/app/apple-store/id6475221163?ct=GitHub" style="display: inline-block; overflow: hidden; border-radius: 13px; width: 250px; height: 83px;">
-    <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1710288000" alt="Download on the App Store" style="border-radius: 13px; width: 250px; height: 83px;">
-</a>
+2. Removed the recent playback statistics feature from the audiobook page history data (the original statistics were incorrect);
 
-## Screenshots
-| Audiobook | Podcast | Player | Other |
-| --- | --- | --- | --- |
-| <img src="/Screenshots/iOS%20Audiobook.png?raw=true" alt="Audiobook (iPhone)" width="200"/>       | <img src="/Screenshots/iOS%20Podcast.png?raw=true" alt="Podcast (iPhone)" width="200"/>        | <img src="/Screenshots/iOS%20Player.png?raw=true" alt="Player (iPhone)" width="200"/>    | <img src="/Screenshots/iOS%20Listen%20Now.png?raw=true" alt="Listen Now (iPhone)" width="200"/> 
-| <img src="/Screenshots/iPadOS%20Audiobook.png?raw=true" alt="Audiobook (iPad)" width="200"/> | <img src="/Screenshots/iPadOS%20Podcast.png?raw=true" alt="Podcast (iPad)" width="200"/> | <img src="/Screenshots/iPadOS%20Player.png?raw=true" alt="Player (iPad)" width="200"/> | <img src="/Screenshots/iPadOS%20Podcast%20Home.png?raw=true" alt="Podcast Home (iPad)" width="200"/> |
+3. Fixed the issue where the audiobook cover on the playback page was not centered;
 
-## Sideloading
+4. Fixed potential memory leak issues.
 
-### Prebuilt Releases
+---
 
-Download the latest release from the [Releases](https://github.com/rasmuslos/shelfplayer/releases) page and install it using tools such as SideStore.
+## 功能添加
 
-**Important limitations when sideloading:**
+1、添加了跳过有声书片头片尾的功能；
 
-* Siri is not supported without a paid Apple Developer account due to entitlement restrictions.
-* App extensions (e.g., Widgets) may not function correctly; it is recommended to remove them before sideloading.
-* For background and technical details, see https://github.com/rasmuslos/ShelfPlayer/issues/20 and https://github.com/rasmuslos/ShelfPlayer/issues/4.
+## 问题修复
 
-### Building from Source
+1、修复了在 audiobook 页面选择不同章节无法跳转播放的问题；
 
-To build ShelfPlayer using Xcode:
+2、删除了 audiobook 页面历史数据中近期播放统计功能（原本统计就是错误的）；
 
-1. Install Xcode.
-2. In the `Configuration/` directory, copy `Debug.xcconfig.template` and rename it to `Debug.xcconfig`.
-3. Edit the file with values appropriate for your environment (e.g. development team ID, bundle prefix, feature flags).
-4. Connect your iPhone and enable Developer Mode.
-5. Open the project in Xcode, select your device, then build and run the app.
+3、修复了 playback 页面有声书封面不居中的问题；
 
-> [!NOTE]
-> The `Debug` configuration is used by default.
-
-## Contributing
-
-Contributions are welcome. To contribute:
-
-1. Fork the repository.
-2. Make your changes in a new branch.
-3. Open a pull request.
-
-If you're interested in helping translate ShelfPlayer, see the [Localization Guide](https://github.com/rasmuslos/ShelfPlayer/blob/main/Localization.md) for instructions on how to contribute a translation.
-
-### AI / Vibe coding
-
-I absolutely see the value in using AI to speed up development and automate tedious tasks. However, I don’t see much value in AI-generated pull requests. I can use tools like Codex myself (even the free version) and iterate with the AI interactively, which is usually faster and more efficient.
-
-For that reason, please avoid submitting pull requests that only contain AI-generated code. Instead, feel free to open an issue describing the idea or improvement. If you’d like, you can also include the prompt you used.
-
-I simply don’t have more time to review AI-generated pull requests than I do to use AI tools directly in my own workflow.
-
-## License
-
-ShelfPlayer is licensed under the **Mozilla Public License 2.0** with the **Commons Clause**.
-
-You are allowed to:
-
-* View, modify, and build the source code for personal use.
-* Submit changes or improvements via pull requests.
-
-You are **not allowed** to:
-
-* Distribute ShelfPlayer in binary form (including on the App Store or through other app distribution platforms).
-
-Prebuilt sideloadable binaries are made available for convenience, but redistribution is not permitted.
-
-## Notes
-
-* Some text and preview content may have been enhanced using AI tools.
-* Code is primarily written manually, with occasional help from Xcode’s built-in AI suggestions.
-* Codex has been used to generate some code. All AI-generated output was carefully reviewed, tested, and iterated on before being committed.
-* ShelfPlayer is not affiliated with Apple, Audiobookshelf, or any third-party platform or service.
-
-## Legal
-
-[Terms of Service](https://github.com/rasmuslos/ShelfPlayer/blob/main/ToS.md) | [Privacy Policy](https://github.com/rasmuslos/ShelfPlayer/blob/main/Privacy.md) | [License](https://github.com/rasmuslos/ShelfPlayer/blob/main/LICENSE)
+4、修复了可能存在的内存泄露的问题。
