@@ -193,13 +193,9 @@ struct PersonView: View {
         }
         .userActivity("io.rfk.shelfplayer.item") { activity in
             activity.title = viewModel.person.name
-            activity.isEligibleForHandoff = true
+            activity.isEligibleForHandoff = false
             activity.isEligibleForPrediction = true
             activity.persistentIdentifier = viewModel.person.description
-            
-            Task {
-                activity.webpageURL = try await viewModel.person.id.url
-            }
         }
     }
 }

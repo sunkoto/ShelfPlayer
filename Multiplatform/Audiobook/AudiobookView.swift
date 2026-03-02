@@ -23,6 +23,7 @@ struct AudiobookView: View {
     private let divider: some View = Divider()
         .padding(.horizontal, 20)
         .padding(.vertical, 24)
+    private let sectionMaxHeight: CGFloat = 420
     
     var body: some View {
         ScrollView {
@@ -39,11 +40,13 @@ struct AudiobookView: View {
                 
                 if viewModel.bookmarks.count > 0 {
                     DisclosureGroup("item.bookmarks \(viewModel.bookmarks.count)", isExpanded: $viewModel.bookmarksVisible) {
-                        List {
-                            BookmarksList(itemID: viewModel.audiobook.id, bookmarks: viewModel.bookmarks)
+                        if viewModel.bookmarksVisible {
+                            List {
+                                BookmarksList(itemID: viewModel.audiobook.id, bookmarks: viewModel.bookmarks)
+                            }
+                            .listStyle(.plain)
+                            .frame(height: min(minimumHeight * CGFloat(viewModel.bookmarks.count), sectionMaxHeight))
                         }
-                        .listStyle(.plain)
-                        .frame(height: minimumHeight * CGFloat(viewModel.bookmarks.count))
                     }
                     .disclosureGroupStyle(BetterDisclosureGroupStyle())
                     .padding(.bottom, 16)
@@ -51,36 +54,42 @@ struct AudiobookView: View {
                 
                 if viewModel.chapters.count > 1 {
                     DisclosureGroup("item.chapters \(viewModel.chapters.count)", isExpanded: $viewModel.chaptersVisible) {
-                        List {
-                            ChaptersList(itemID: viewModel.audiobook.id, chapters: viewModel.chapters)
+                        if viewModel.chaptersVisible {
+                            List {
+                                ChaptersList(itemID: viewModel.audiobook.id, chapters: viewModel.chapters)
+                            }
+                            .listStyle(.plain)
+                            .frame(height: min(minimumHeight * CGFloat(viewModel.chapters.count), sectionMaxHeight))
                         }
-                        .listStyle(.plain)
-                        .frame(height: minimumHeight * CGFloat(viewModel.chapters.count))
                     }
                     .disclosureGroupStyle(BetterDisclosureGroupStyle())
                     .padding(.bottom, 16)
                 }
                 
                 DisclosureGroup("timeline", isExpanded: $viewModel.sessionsVisible) {
-                    Timeline(sessionLoader: viewModel.sessionLoader, item: viewModel.audiobook)
-                        .padding(.top, 8)
-                        .padding(.horizontal, 20)
+                    if viewModel.sessionsVisible {
+                        Timeline(sessionLoader: viewModel.sessionLoader, item: viewModel.audiobook)
+                            .padding(.top, 8)
+                            .padding(.horizontal, 20)
+                    }
                 }
                 .disclosureGroupStyle(BetterDisclosureGroupStyle())
                 .padding(.bottom, 16)
                 
                 if !viewModel.supplementaryPDFs.isEmpty {
                     DisclosureGroup("item.documents", isExpanded: $viewModel.supplementaryPDFsVisible) {
-                        List {
-                            ForEach(viewModel.supplementaryPDFs, id: \.ino) { pdf in
-                                Button(pdf.name) {
-                                    viewModel.presentPDF(pdf)
+                        if viewModel.supplementaryPDFsVisible {
+                            List {
+                                ForEach(viewModel.supplementaryPDFs, id: \.ino) { pdf in
+                                    Button(pdf.name) {
+                                        viewModel.presentPDF(pdf)
+                                    }
                                 }
                             }
+                            .listStyle(.plain)
+                            .disabled(viewModel.loadingPDF)
+                            .frame(height: min(minimumHeight * CGFloat(viewModel.supplementaryPDFs.count), sectionMaxHeight))
                         }
-                        .listStyle(.plain)
-                        .disabled(viewModel.loadingPDF)
-                        .frame(height: minimumHeight * CGFloat(viewModel.supplementaryPDFs.count))
                     }
                     .disclosureGroupStyle(BetterDisclosureGroupStyle())
                 }
@@ -118,13 +127,9 @@ struct AudiobookView: View {
         }
         .userActivity("io.rfk.shelfPlayer.item") { activity in
             activity.title = viewModel.audiobook.name
-            activity.isEligibleForHandoff = true
+            activity.isEligibleForHandoff = false
             activity.isEligibleForPrediction = true
             activity.persistentIdentifier = viewModel.audiobook.id.description
-            
-            Task {
-                try await activity.webpageURL = viewModel.audiobook.id.url
-            }
         }
     }
 }

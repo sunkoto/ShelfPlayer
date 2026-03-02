@@ -66,13 +66,9 @@ struct EpisodeView: View {
         }
         .userActivity("io.rfk.shelfPlayer.item") { activity in
             activity.title = viewModel.episode.name
-            activity.isEligibleForHandoff = true
+            activity.isEligibleForHandoff = false
             activity.isEligibleForPrediction = true
             activity.persistentIdentifier = viewModel.episode.id.description
-            
-            Task {
-                try await activity.webpageURL = viewModel.episode.id.url
-            }
         }
     }
 }

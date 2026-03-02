@@ -30,13 +30,7 @@ struct ChaptersList: View {
     @ViewBuilder
     private func row(for chapter: Chapter) -> some View {
         TimeRow(title: chapter.title, time: chapter.startOffset, isActive: currentTime >= chapter.startOffset, isFinished: currentTime > chapter.endOffset) {
-            let resumeTime: TimeInterval
-            if currentTime > chapter.startOffset && currentTime < chapter.endOffset {
-                resumeTime = currentTime
-            } else {
-                resumeTime = chapter.startOffset
-            }
-            satellite.start(itemID, at: resumeTime)
+            satellite.start(itemID, at: chapter.startOffset)
         }
     }
     

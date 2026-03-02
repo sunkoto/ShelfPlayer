@@ -559,21 +559,7 @@ extension Satellite {
     func start(_ itemID: ItemIdentifier, at: TimeInterval? = nil, origin: AudioPlayerItem.PlaybackOrigin = .unknown, queue: [ItemIdentifier] = []) {
         Task {
             guard self.nowPlayingItemID != itemID else {
-                // 如果指定了播放时间，需要跳转到指定位置而不是简单的播放/暂停切换
-                if let at {
-                    startWorking(on: itemID)
-                    do {
-                        try await AudioPlayer.shared.seek(to: at, insideChapter: false)
-                        if !isPlaying {
-                            await AudioPlayer.shared.play()
-                        }
-                        endWorking(on: itemID, successfully: true)
-                    } catch {
-                        endWorking(on: itemID, successfully: false)
-                    }
-                } else {
-                    togglePlaying()
-                }
+                togglePlaying()
                 return
             }
 

@@ -108,13 +108,9 @@ struct CollectionView: View {
         .modifier(PlaybackSafeAreaPaddingModifier())
         .userActivity("io.rfk.shelfplayer.item") { activity in
             activity.title = viewModel.collection.name
-            activity.isEligibleForHandoff = true
+            activity.isEligibleForHandoff = false
             activity.isEligibleForPrediction = true
             activity.persistentIdentifier = viewModel.collection.id.description
-            
-            Task {
-                try await activity.webpageURL = viewModel.collection.id.url
-            }
         }
     }
 }

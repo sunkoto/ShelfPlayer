@@ -101,10 +101,10 @@ final class LocalAudioEndpoint: AudioEndpoint {
     
     private(set) var upNextStrategy: ResolvedUpNextStrategy?
     
-    private var chapterValidUntil: TimeInterval?
+    private(set) var skipIntro: TimeInterval?
+    private(set) var skipOutro: TimeInterval?
     
-    private var cachedSkipIntro: TimeInterval?
-    private var cachedSkipOutro: TimeInterval?
+    private var chapterValidUntil: TimeInterval?
     
     private var audioPlayerSubscription: Any?
     private var volumeSubscription: AnyCancellable?
@@ -151,6 +151,9 @@ final class LocalAudioEndpoint: AudioEndpoint {
         
         route = nil
         
+        skipIntro = nil
+        skipOutro = nil
+        
         allowUpNextQueueGeneration = true
         
         await setupObservers()
@@ -158,9 +161,7 @@ final class LocalAudioEndpoint: AudioEndpoint {
         try await start()
     }
     deinit {
-        // Note: Most cleanup is done in stop() method.
-        // This deinit is a safety net for when the object is deallocated without proper cleanup.
-        // Timer and NotificationCenter observers will be automatically cleaned up when their targets are deallocated.
+        // bufferCheckTimer?.invalidate()
     }
     
     var currentItemID: ItemIdentifier {
@@ -268,13 +269,6 @@ extension LocalAudioEndpoint {
         cancelUpdateBufferingCheck()
         sleepTimeoutTimer?.invalidate()
         
-        if let audioPlayerSubscription {
-            audioPlayer.removeTimeObserver(audioPlayerSubscription)
-        }
-        
-        // Note: NotificationCenter observers are automatically removed when the object is deallocated
-        // due to weak references in the notification system
-        
         await AudioPlayer.shared.didStopPlaying(endpointID: id, itemID: currentItemID)
     }
     
@@ -339,17 +333,9 @@ extension LocalAudioEndpoint {
             activeAudioTrackIndex = index
         }
         
-        var seekTime = time - audioTracks[index].offset
+        await audioPlayer.seek(to: CMTime(seconds: time - audioTracks[index].offset, preferredTimescale: 1000))
         
-        if seekTime == 0,
-           let skipIntro = cachedSkipIntro,
-           skipIntro > 0 {
-            seekTime = skipIntro
-        }
-        
-        await audioPlayer.seek(to: CMTime(seconds: seekTime, preferredTimescale: 1000))
-        
-        currentTime = audioTracks[index].offset + seekTime
+        currentTime = time
         await updateChapterIndex()
         
         if isPlaying {
@@ -457,6 +443,9 @@ private extension LocalAudioEndpoint {
         chapterDuration = nil
         chapterCurrentTime = nil
         
+        skipIntro = nil
+        skipOutro = nil
+        
         var audioTracks = [PlayableItem.AudioTrack]()
         var chapters = [Chapter]()
         
@@ -520,28 +509,20 @@ private extension LocalAudioEndpoint {
         
         self.audioTracks = audioTracks.sorted()
         self.chapters = chapters.sorted()
-        
-        cachedSkipIntro = await PersistenceManager.shared.item.skipIntro(for: currentItemID)
-        cachedSkipOutro = await PersistenceManager.shared.item.skipOutro(for: currentItemID)
-        
+        await updateConfiguredSkips()
         playbackReporter = .init(itemID: currentItemID, startTime: startTime, sessionID: sessionID)
         
-        let effectiveStartTime: TimeInterval
-        if startTime == 0,
-           let skipIntro = cachedSkipIntro,
-           skipIntro > 0 {
-            effectiveStartTime = skipIntro
-        } else {
-            effectiveStartTime = startTime
-        }
-        
         do {
-            try await seek(to: effectiveStartTime, insideChapter: false)
+            try await seek(to: startTime, insideChapter: false)
         } catch {
             logger.error("Failed to seek to start time: \(error)")
         }
         
-        await AudioPlayer.shared.didStartPlaying(endpointID: id, itemID: currentItemID, chapters: self.chapters, at: startTime)
+        await applyConfiguredSkipsIfNeeded(force: true, allowItemAdvance: false)
+        
+        let reportStartTime = currentTime ?? startTime
+        
+        await AudioPlayer.shared.didStartPlaying(endpointID: id, itemID: currentItemID, chapters: self.chapters, at: reportStartTime)
         
         await updateDuration()
         
@@ -570,6 +551,122 @@ private extension LocalAudioEndpoint {
         
         Defaults[.lastPlayedItemID] = currentItemID
         UIApplication.shared.endBackgroundTask(task)
+    }
+    
+    func updateConfiguredSkips() async {
+        let groupingItemID = await groupingID
+        
+        if let configured = await PersistenceManager.shared.item.skipIntro(for: currentItemID) {
+            skipIntro = configured > 0 ? configured : nil
+        } else if let groupingItemID, let configured = await PersistenceManager.shared.item.skipIntro(for: groupingItemID) {
+            skipIntro = configured > 0 ? configured : nil
+        } else {
+            skipIntro = nil
+        }
+        
+        if let configured = await PersistenceManager.shared.item.skipOutro(for: currentItemID) {
+            skipOutro = configured > 0 ? configured : nil
+        } else if let groupingItemID, let configured = await PersistenceManager.shared.item.skipOutro(for: groupingItemID) {
+            skipOutro = configured > 0 ? configured : nil
+        } else {
+            skipOutro = nil
+        }
+    }
+    func applyConfiguredSkipsIfNeeded(force: Bool = false, allowItemAdvance: Bool = true) async {
+        guard force || activeOperationCount == 0 else {
+            return
+        }
+        
+        guard let currentTime, let target = configuredSkipTarget(for: currentTime), target > currentTime + 0.25 || target < currentTime - 0.25 else {
+            return
+        }
+        
+        if !allowItemAdvance,
+           let end = duration ?? audioTracks.last.map({ $0.offset + $0.duration }),
+           target >= end - 0.01 {
+            return
+        }
+        
+        logger.info("Applying automatic intro/outro skip from \(currentTime) to \(target)")
+        
+        do {
+            try await seek(to: target, insideChapter: false)
+        } catch {
+            logger.error("Failed to apply configured intro/outro skip: \(error)")
+        }
+    }
+    func configuredSkipTarget(for currentTime: TimeInterval) -> TimeInterval? {
+        guard skipIntro != nil || skipOutro != nil else {
+            return nil
+        }
+        
+        if let chapterIndex = chapterIndexIgnoringPreference(at: currentTime) {
+            return configuredChapterSkipTarget(currentTime: currentTime, chapterIndex: chapterIndex)
+        } else {
+            return configuredItemSkipTarget(currentTime: currentTime)
+        }
+    }
+    func configuredChapterSkipTarget(currentTime: TimeInterval, chapterIndex: Int) -> TimeInterval? {
+        let chapter = chapters[chapterIndex]
+        
+        if let skipOutro, currentTime >= chapter.endOffset - skipOutro {
+            return configuredTargetAfterChapter(index: chapterIndex)
+        }
+        
+        if let skipIntro, currentTime < chapter.startOffset + skipIntro {
+            let introTarget = min(chapter.startOffset + skipIntro, chapter.endOffset)
+            let chapterBodyEnd = chapter.endOffset - (skipOutro ?? 0)
+            
+            if introTarget >= chapterBodyEnd {
+                return configuredTargetAfterChapter(index: chapterIndex)
+            } else {
+                return introTarget
+            }
+        }
+        
+        return nil
+    }
+    func configuredItemSkipTarget(currentTime: TimeInterval) -> TimeInterval? {
+        let duration = self.duration ?? audioTracks.last.map { $0.offset + $0.duration }
+        
+        if let skipOutro, let duration, currentTime >= duration - skipOutro {
+            return duration
+        }
+        
+        if let skipIntro, currentTime < skipIntro {
+            if let duration, skipIntro >= duration - (skipOutro ?? 0) {
+                return duration
+            }
+            
+            return skipIntro
+        }
+        
+        return nil
+    }
+    func configuredTargetAfterChapter(index: Int) -> TimeInterval? {
+        let epsilon = 0.01
+        
+        if index + 1 < chapters.count {
+            var targetIndex = index + 1
+            
+            while targetIndex < chapters.count {
+                let chapter = chapters[targetIndex]
+                let introTarget = min(chapter.startOffset + (skipIntro ?? 0), chapter.endOffset)
+                let chapterBodyEnd = chapter.endOffset - (skipOutro ?? 0)
+                
+                if introTarget >= chapterBodyEnd - epsilon {
+                    targetIndex += 1
+                    continue
+                }
+                
+                return introTarget
+            }
+        }
+        
+        return duration ?? audioTracks.last.map { $0.offset + $0.duration }
+    }
+    func chapterIndexIgnoringPreference(at time: TimeInterval) -> Int? {
+        chapters.firstIndex(where: { time >= $0.startOffset && time < $0.endOffset })
     }
     
     func updateChapterIndex() async {
@@ -878,21 +975,10 @@ private extension LocalAudioEndpoint {
         RFNotification[.accessTokenExpired].subscribe { [weak self] connectionID in
             self?.repopulateQueueTrigger(connectionID: connectionID)
         }
-
+        
         RFNotification[.invalidateProgressEntities].subscribe { [weak self] _ in
-            Task.detached { [weak self] in
-                guard let self else {
-                    return
-                }
-
-                let itemID = await MainActor.run { self.currentItemID }
-                let skipIntro = await PersistenceManager.shared.item.skipIntro(for: itemID)
-                let skipOutro = await PersistenceManager.shared.item.skipOutro(for: itemID)
-
-                await MainActor.run {
-                    self.cachedSkipIntro = skipIntro
-                    self.cachedSkipOutro = skipOutro
-                }
+            Task {
+                await self?.updateConfiguredSkips()
             }
         }
         
@@ -980,16 +1066,7 @@ private extension LocalAudioEndpoint {
                         await didPlayToEnd(finishedCurrentItem: true)
                     }
                 } else {
-                    Task {
-                        activeAudioTrackIndex += 1
-                        
-                        if let skipIntro = self.cachedSkipIntro,
-                           skipIntro > 0,
-                           activeAudioTrackIndex < self.audioTracks.count {
-                            let nextTrackOffset = self.audioTracks[self.activeAudioTrackIndex].offset
-                            try? await self.seek(to: nextTrackOffset + skipIntro, insideChapter: false)
-                        }
-                    }
+                    activeAudioTrackIndex += 1
                 }
             }
         }
@@ -1029,27 +1106,6 @@ private extension LocalAudioEndpoint {
                         let seconds = audioPlayer.currentTime().seconds
                         
                         currentTime = audioTrack.offset + seconds
-                        
-                        if let currentTime = currentTime,
-                           let skipOutro = self.cachedSkipOutro,
-                           skipOutro > 0,
-                           activeAudioTrackIndex < self.audioTracks.count - 1 {
-                            let trackEndTime = audioTrack.offset + audioTrack.duration
-                            
-                            if currentTime >= trackEndTime - skipOutro {
-                                activeAudioTrackIndex += 1
-                                
-                                if let skipIntro = self.cachedSkipIntro,
-                                   skipIntro > 0 {
-                                    let nextTrackOffset = self.audioTracks[self.activeAudioTrackIndex].offset
-                                    try? await self.seek(to: nextTrackOffset + skipIntro, insideChapter: false)
-                                } else {
-                                    try? await self.seek(to: self.audioTracks[self.activeAudioTrackIndex].offset, insideChapter: false)
-                                }
-                                
-                                return
-                            }
-                        }
                     }
                     
                     // MARK: Chapter
@@ -1057,6 +1113,10 @@ private extension LocalAudioEndpoint {
                     if !chapters.isEmpty, let currentTime = currentTime, let chapterValidUntil = chapterValidUntil, chapterValidUntil < currentTime {
                         await updateChapterIndex()
                     }
+                    
+                    // MARK: Intro/Outro skipping
+                    
+                    await applyConfiguredSkipsIfNeeded()
                     
                     // MARK: Chapter current time
                     

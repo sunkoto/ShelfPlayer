@@ -143,10 +143,19 @@ private extension AudiobookViewModel {
             return
         }
         
-        withAnimation {
+        let shouldAnimate = chapters.count < 300
+        let update = {
             self.audiobook = item as! Audiobook
             self.chapters = chapters
             self.supplementaryPDFs = supplementaryPDFs
+        }
+        
+        if shouldAnimate {
+            withAnimation {
+                update()
+            }
+        } else {
+            update()
         }
     }
     

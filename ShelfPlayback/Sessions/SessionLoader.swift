@@ -41,9 +41,6 @@ public final class SessionLoader {
     public var totalTimeSpendListening: TimeInterval {
         sessions.reduce(0) { $0 + ($1.timeListening ?? 0) }
     }
-    public var mostRecent: SessionPayload? {
-        sessions.max(by: { $0.startDate < $1.startDate })
-    }
     
     public func refresh() {
         guard !isLoading else {
